@@ -100,6 +100,33 @@ EXEC sp_addrolemember 'db_owner', 'uai-ladocproc........';
 | `setup-sql.sh` | Automates SQL schema setup (Terraform) — temporarily opens public access |
 | `setup-sql-bicep.sh` | Automates SQL schema setup (Bicep) — temporarily opens public access |
 
+## Deployed Resources
+
+The Bicep/Terraform templates deploy the following Azure resource types:
+
+| Resource Type | Description |
+|---|---|
+| `Microsoft.Resources/resourceGroups` | Resource Group |
+| `Microsoft.Network/virtualNetworks` | Virtual Network (VNet) |
+| `Microsoft.KeyVault/vaults` | Key Vault |
+| `Microsoft.Insights/components` | Application Insights |
+| `Microsoft.ManagedIdentity/userAssignedIdentities` | User-Assigned Managed Identity |
+| `Microsoft.Authorization/roleAssignments` | Role Assignments (secrets, certs, blob, queue, table, cognitive, reader, AI) |
+| `Microsoft.Storage/storageAccounts` | Storage Account |
+| `Microsoft.Network/privateDnsZones` | Private DNS Zones |
+| `Microsoft.Network/privateDnsZones/virtualNetworkLinks` | DNS Zone VNet Links |
+| `Microsoft.Network/privateEndpoints` | Private Endpoints (storage, SQL, cognitive) |
+| `Microsoft.Network/privateEndpoints/privateDnsZoneGroups` | Private Endpoint DNS Zone Groups |
+| `Microsoft.Web/serverfarms` | App Service Plan |
+| `Microsoft.Web/sites` | Logic App (Standard) |
+| `Microsoft.Sql/servers` | SQL Server |
+| `Microsoft.Sql/servers/databases` | SQL Database |
+| `Microsoft.CognitiveServices/accounts` | Form Recognizer (Document Intelligence) |
+| `Microsoft.Web/connections` | API Connections (Office 365) |
+| `Microsoft.Web/connections/accessPolicies` | Connection Access Policies |
+
+It also references an existing `Microsoft.OperationalInsights/workspaces` (Log Analytics Workspace).
+
 ## Project Structure
 
 ```
