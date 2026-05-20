@@ -1,0 +1,49 @@
+{
+  "serviceProviderConnections": {
+    "sql": {
+      "displayName": "conn_sql",
+      "parameterSetName": "ManagedServiceIdentity",
+      "parameterValues": {
+        "authProvider": {
+          "Type": "ManagedServiceIdentity"
+        },
+        "databaseName": "{{SQL_DATABASE_NAME}}",
+        "managedIdentityClientId": "{{UAI_CLIENT_ID}}",
+        "managedIdentityType": "UserAssigned",
+        "serverName": "{{SQL_SERVER_FQDN}}"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/sql"
+      }
+      
+    },
+    "documentIntelligence": {
+      "parameterSetName": "ManagedServiceIdentity",
+      "parameterValues": {
+        "documentIntelligenceEndpoint": "{{DOC_INTEL_ENDPOINT}}",
+        "authProvider": {
+          "Type": "ManagedServiceIdentity"
+        }
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/documentIntelligence"
+      },
+      "displayName": "conn_docintel"
+    }
+  },
+  "managedApiConnections": {
+    "office365": {
+      "api": {
+        "id": "/subscriptions/{{SUBSCRIPTION_ID}}/providers/Microsoft.Web/locations/{{LOCATION}}/managedApis/office365"
+      },
+      "connection": {
+        "id": "{{OFFICE365_CONNECTION_ID}}"
+      },
+      "connectionRuntimeUrl": "{{OFFICE365_RUNTIME_URL}}",
+      "authentication": {
+        "type": "ManagedServiceIdentity"
+      }
+    }
+  },
+  "agentConnections": {}
+}

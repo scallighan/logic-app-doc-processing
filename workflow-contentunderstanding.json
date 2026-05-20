@@ -1,0 +1,909 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "actions": {
+            "Read_blob_content": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "containerName": "contentunderstanding",
+                        "blobName": "deal_summary.pdf"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureBlob",
+                        "operationId": "readBlob",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                },
+                "runAfter": {}
+            },
+            "HTTP": {
+                "type": "Http",
+                "inputs": {
+                    "uri": "https://aifoundryga1y6d1k.services.ai.azure.com/contentunderstanding/analyzers/mysampleanalyzerv2:analyzeBinary?api-version=2025-11-01",
+                    "method": "POST",
+                    "body": "@body('Read_blob_content')?['content']",
+                    "authentication": {
+                        "type": "ManagedServiceIdentity",
+                        "identity": "/subscriptions/022cb663-520c-406e-b9b3-b5efe9e45434/resourcegroups/rg-logic-app-doc-processing-b8u3eg82-westus3/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai-ladocprocb8u3eg82",
+                        "audience": "https://cognitiveservices.azure.com"
+                    }
+                },
+                "runAfter": {
+                    "Read_blob_content": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "runtimeConfiguration": {
+                    "contentTransfer": {
+                        "transferMode": "Chunked"
+                    }
+                }
+            },
+            "Parse_JSON": {
+                "type": "ParseJson",
+                "inputs": {
+                    "content": "@body('HTTP')",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "status": {
+                                "type": "string"
+                            },
+                            "result": {
+                                "type": "object",
+                                "properties": {
+                                    "analyzerId": {
+                                        "type": "string"
+                                    },
+                                    "apiVersion": {
+                                        "type": "string"
+                                    },
+                                    "createdAt": {
+                                        "type": "string"
+                                    },
+                                    "warnings": {
+                                        "type": "array"
+                                    },
+                                    "contents": {
+                                        "type": "array"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "runAfter": {
+                    "HTTP": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Initialize_variables": {
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "status",
+                            "type": "string",
+                            "value": "@{body('Parse_JSON')?['status']}"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Parse_JSON": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Until": {
+                "type": "Until",
+                "expression": "@equals(variables('status'), 'Succeeded')",
+                "limit": {
+                    "count": 10,
+                    "timeout": "PT10M"
+                },
+                "actions": {
+                    "HTTP_1": {
+                        "type": "Http",
+                        "inputs": {
+                            "uri": "@concat('https://aifoundryga1y6d1k.services.ai.azure.com/contentunderstanding/analyzerResults/',body('Parse_JSON')?['id'],'?api-version=2025-11-01')",
+                            "method": "GET",
+                            "authentication": {
+                                "type": "ManagedServiceIdentity",
+                                "identity": "/subscriptions/022cb663-520c-406e-b9b3-b5efe9e45434/resourcegroups/rg-logic-app-doc-processing-b8u3eg82-westus3/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai-ladocprocb8u3eg82",
+                                "audience": "https://cognitiveservices.azure.com"
+                            }
+                        },
+                        "runtimeConfiguration": {
+                            "contentTransfer": {
+                                "transferMode": "Chunked"
+                            }
+                        }
+                    },
+                    "Parse_JSON_1": {
+                        "type": "ParseJson",
+                        "inputs": {
+                            "content": "@body('HTTP_1')",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    },
+                                    "result": {
+                                        "type": "object",
+                                        "properties": {
+                                            "analyzerId": {
+                                                "type": "string"
+                                            },
+                                            "apiVersion": {
+                                                "type": "string"
+                                            },
+                                            "createdAt": {
+                                                "type": "string"
+                                            },
+                                            "warnings": {
+                                                "type": "array"
+                                            },
+                                            "contents": {
+                                                "type": "array"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "runAfter": {
+                            "HTTP_1": [
+                                "SUCCEEDED"
+                            ]
+                        }
+                    },
+                    "Set_variable": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "status",
+                            "value": "@body('Parse_JSON_1')?['status']"
+                        },
+                        "runAfter": {
+                            "Parse_JSON_1": [
+                                "SUCCEEDED"
+                            ]
+                        }
+                    },
+                    "Delay": {
+                        "type": "Wait",
+                        "inputs": {
+                            "interval": {
+                                "count": 2,
+                                "unit": "Second"
+                            }
+                        },
+                        "runAfter": {
+                            "Set_variable": [
+                                "SUCCEEDED"
+                            ]
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Initialize_variables": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Parse_JSON_2": {
+                "type": "ParseJson",
+                "inputs": {
+                    "content": "@body('HTTP_1')",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "status": {
+                                "type": "string"
+                            },
+                            "result": {
+                                "type": "object",
+                                "properties": {
+                                    "analyzerId": {
+                                        "type": "string"
+                                    },
+                                    "apiVersion": {
+                                        "type": "string"
+                                    },
+                                    "createdAt": {
+                                        "type": "string"
+                                    },
+                                    "stringEncoding": {
+                                        "type": "string"
+                                    },
+                                    "warnings": {
+                                        "type": "array"
+                                    },
+                                    "contents": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "path": {
+                                                    "type": "string"
+                                                },
+                                                "markdown": {
+                                                    "type": "string"
+                                                },
+                                                "fields": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "Title": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "valueString": {
+                                                                    "type": "string"
+                                                                },
+                                                                "spans": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "offset": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "length": {
+                                                                                "type": "integer"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "offset",
+                                                                            "length"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "confidence": {
+                                                                    "type": "number"
+                                                                },
+                                                                "source": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        },
+                                                        "ContractId": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "valueString": {
+                                                                    "type": "string"
+                                                                },
+                                                                "spans": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "offset": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "length": {
+                                                                                "type": "integer"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "offset",
+                                                                            "length"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "confidence": {
+                                                                    "type": "number"
+                                                                },
+                                                                "source": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        },
+                                                        "Parties": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "valueArray": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "type": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "valueObject": {
+                                                                                "type": "object",
+                                                                                "properties": {
+                                                                                    "Name": {
+                                                                                        "type": "object",
+                                                                                        "properties": {
+                                                                                            "type": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "valueString": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "spans": {
+                                                                                                "type": "array",
+                                                                                                "items": {
+                                                                                                    "type": "object",
+                                                                                                    "properties": {
+                                                                                                        "offset": {
+                                                                                                            "type": "integer"
+                                                                                                        },
+                                                                                                        "length": {
+                                                                                                            "type": "integer"
+                                                                                                        }
+                                                                                                    },
+                                                                                                    "required": [
+                                                                                                        "offset",
+                                                                                                        "length"
+                                                                                                    ]
+                                                                                                }
+                                                                                            },
+                                                                                            "confidence": {
+                                                                                                "type": "number"
+                                                                                            },
+                                                                                            "source": {
+                                                                                                "type": "string"
+                                                                                            }
+                                                                                        }
+                                                                                    },
+                                                                                    "Address": {
+                                                                                        "type": "object",
+                                                                                        "properties": {
+                                                                                            "type": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "valueString": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "spans": {
+                                                                                                "type": "array",
+                                                                                                "items": {
+                                                                                                    "type": "object",
+                                                                                                    "properties": {
+                                                                                                        "offset": {
+                                                                                                            "type": "integer"
+                                                                                                        },
+                                                                                                        "length": {
+                                                                                                            "type": "integer"
+                                                                                                        }
+                                                                                                    },
+                                                                                                    "required": [
+                                                                                                        "offset",
+                                                                                                        "length"
+                                                                                                    ]
+                                                                                                }
+                                                                                            },
+                                                                                            "confidence": {
+                                                                                                "type": "number"
+                                                                                            },
+                                                                                            "source": {
+                                                                                                "type": "string"
+                                                                                            }
+                                                                                        }
+                                                                                    },
+                                                                                    "ReferenceName": {
+                                                                                        "type": "object",
+                                                                                        "properties": {
+                                                                                            "type": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "valueString": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "spans": {
+                                                                                                "type": "array",
+                                                                                                "items": {
+                                                                                                    "type": "object",
+                                                                                                    "properties": {
+                                                                                                        "offset": {
+                                                                                                            "type": "integer"
+                                                                                                        },
+                                                                                                        "length": {
+                                                                                                            "type": "integer"
+                                                                                                        }
+                                                                                                    },
+                                                                                                    "required": [
+                                                                                                        "offset",
+                                                                                                        "length"
+                                                                                                    ]
+                                                                                                }
+                                                                                            },
+                                                                                            "confidence": {
+                                                                                                "type": "number"
+                                                                                            },
+                                                                                            "source": {
+                                                                                                "type": "string"
+                                                                                            }
+                                                                                        }
+                                                                                    },
+                                                                                    "Clause": {
+                                                                                        "type": "object",
+                                                                                        "properties": {
+                                                                                            "type": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "valueString": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "spans": {
+                                                                                                "type": "array",
+                                                                                                "items": {
+                                                                                                    "type": "object",
+                                                                                                    "properties": {
+                                                                                                        "offset": {
+                                                                                                            "type": "integer"
+                                                                                                        },
+                                                                                                        "length": {
+                                                                                                            "type": "integer"
+                                                                                                        }
+                                                                                                    },
+                                                                                                    "required": [
+                                                                                                        "offset",
+                                                                                                        "length"
+                                                                                                    ]
+                                                                                                }
+                                                                                            },
+                                                                                            "confidence": {
+                                                                                                "type": "number"
+                                                                                            },
+                                                                                            "source": {
+                                                                                                "type": "string"
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "type",
+                                                                            "valueObject"
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        "ExecutionDate": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "confidence": {
+                                                                    "type": "number"
+                                                                }
+                                                            }
+                                                        },
+                                                        "EffectiveDate": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "valueDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "spans": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "offset": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "length": {
+                                                                                "type": "integer"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "offset",
+                                                                            "length"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "confidence": {
+                                                                    "type": "number"
+                                                                },
+                                                                "source": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        },
+                                                        "ExpirationDate": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "valueDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "spans": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "offset": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "length": {
+                                                                                "type": "integer"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "offset",
+                                                                            "length"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "confidence": {
+                                                                    "type": "number"
+                                                                },
+                                                                "source": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        },
+                                                        "ContractDuration": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "valueString": {
+                                                                    "type": "string"
+                                                                },
+                                                                "spans": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "offset": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "length": {
+                                                                                "type": "integer"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "offset",
+                                                                            "length"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "confidence": {
+                                                                    "type": "number"
+                                                                },
+                                                                "source": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        },
+                                                        "RenewalDate": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "confidence": {
+                                                                    "type": "number"
+                                                                }
+                                                            }
+                                                        },
+                                                        "Jurisdictions": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "valueArray": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "type": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "valueObject": {
+                                                                                "type": "object",
+                                                                                "properties": {
+                                                                                    "Clause": {
+                                                                                        "type": "object",
+                                                                                        "properties": {
+                                                                                            "type": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "valueString": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "spans": {
+                                                                                                "type": "array",
+                                                                                                "items": {
+                                                                                                    "type": "object",
+                                                                                                    "properties": {
+                                                                                                        "offset": {
+                                                                                                            "type": "integer"
+                                                                                                        },
+                                                                                                        "length": {
+                                                                                                            "type": "integer"
+                                                                                                        }
+                                                                                                    },
+                                                                                                    "required": [
+                                                                                                        "offset",
+                                                                                                        "length"
+                                                                                                    ]
+                                                                                                }
+                                                                                            },
+                                                                                            "confidence": {
+                                                                                                "type": "number"
+                                                                                            },
+                                                                                            "source": {
+                                                                                                "type": "string"
+                                                                                            }
+                                                                                        }
+                                                                                    },
+                                                                                    "Region": {
+                                                                                        "type": "object",
+                                                                                        "properties": {
+                                                                                            "type": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "valueString": {
+                                                                                                "type": "string"
+                                                                                            },
+                                                                                            "spans": {
+                                                                                                "type": "array",
+                                                                                                "items": {
+                                                                                                    "type": "object",
+                                                                                                    "properties": {
+                                                                                                        "offset": {
+                                                                                                            "type": "integer"
+                                                                                                        },
+                                                                                                        "length": {
+                                                                                                            "type": "integer"
+                                                                                                        }
+                                                                                                    },
+                                                                                                    "required": [
+                                                                                                        "offset",
+                                                                                                        "length"
+                                                                                                    ]
+                                                                                                }
+                                                                                            },
+                                                                                            "confidence": {
+                                                                                                "type": "number"
+                                                                                            },
+                                                                                            "source": {
+                                                                                                "type": "string"
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "type",
+                                                                            "valueObject"
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        "Location": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "confidence": {
+                                                                    "type": "number"
+                                                                }
+                                                            }
+                                                        },
+                                                        "Total": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "valueNumber": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "spans": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "offset": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "length": {
+                                                                                "type": "integer"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "offset",
+                                                                            "length"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "confidence": {
+                                                                    "type": "number"
+                                                                },
+                                                                "source": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                "kind": {
+                                                    "type": "string"
+                                                },
+                                                "startPageNumber": {
+                                                    "type": "integer"
+                                                },
+                                                "endPageNumber": {
+                                                    "type": "integer"
+                                                },
+                                                "unit": {
+                                                    "type": "string"
+                                                },
+                                                "pages": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "pageNumber": {
+                                                                "type": "integer"
+                                                            },
+                                                            "angle": {
+                                                                "type": "integer"
+                                                            },
+                                                            "width": {
+                                                                "type": "number"
+                                                            },
+                                                            "height": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "pageNumber",
+                                                            "angle",
+                                                            "width",
+                                                            "height"
+                                                        ]
+                                                    }
+                                                },
+                                                "analyzerId": {
+                                                    "type": "string"
+                                                },
+                                                "mimeType": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "path",
+                                                "markdown",
+                                                "fields",
+                                                "kind",
+                                                "startPageNumber",
+                                                "endPageNumber",
+                                                "unit",
+                                                "pages",
+                                                "analyzerId",
+                                                "mimeType"
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "usage": {
+                                "type": "object",
+                                "properties": {
+                                    "documentPagesStandard": {
+                                        "type": "integer"
+                                    },
+                                    "contextualizationTokens": {
+                                        "type": "integer"
+                                    },
+                                    "tokens": {
+                                        "type": "object",
+                                        "properties": {
+                                            "gpt-4.1-input": {
+                                                "type": "integer"
+                                            },
+                                            "gpt-4.1-output": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Until": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "For_each": {
+                "type": "foreach",
+                "foreach": "@outputs('Parse_JSON_2')?['body']?['result']?['contents']",
+                "actions": {
+                    "Append_to_array_variable": {
+                        "type": "AppendToArrayVariable",
+                        "inputs": {
+                            "name": "fieldsarr",
+                            "value": "@item()?['fields']"
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Initialize_variables_1": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Response": {
+                "type": "Response",
+                "kind": "Http",
+                "inputs": {
+                    "statusCode": 200,
+                    "body": "Done!\n\n@{variables('fieldsarr')}"
+                },
+                "runAfter": {
+                    "For_each": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Initialize_variables_1": {
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "fieldsarr",
+                            "type": "array",
+                            "value": []
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Parse_JSON_2": [
+                        "SUCCEEDED"
+                    ]
+                }
+            }
+        },
+        "outputs": {},
+        "triggers": {
+            "When_an_HTTP_request_is_received": {
+                "type": "Request",
+                "kind": "Http"
+            }
+        }
+    },
+    "kind": "stateful"
+}

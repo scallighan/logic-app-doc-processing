@@ -1,0 +1,132 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "actions": {
+            "For_each": {
+                "type": "foreach",
+                "foreach": "@triggerBody()?['attachments']",
+                "actions": {
+                    "Condition": {
+                        "type": "If",
+                        "expression": {
+                            "and": [
+                                {
+                                    "equals": [
+                                        "@item()?['isInline']",
+                                        false
+                                    ]
+                                }
+                            ]
+                        },
+                        "actions": {
+                            "Execute_query": {
+                                "type": "ServiceProvider",
+                                "inputs": {
+                                    "parameters": {
+                                        "query": "INSERT INTO dbo.Documents (\n    DocumentDate,\n    Name,\n    Content,\n    Processor\n) VALUES (\n    GETDATE(),\n    @Name,\n    @Content,\n    N'LogicApp'\n);\n",
+                                        "queryParameters": {
+                                            "Name": "@item()?['name']",
+                                            "Content": "@body('Analyze_document')?['content']"
+                                        }
+                                    },
+                                    "serviceProviderConfiguration": {
+                                        "connectionName": "sql",
+                                        "operationId": "executeQuery",
+                                        "serviceProviderId": "/serviceProviders/sql"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Analyze_document": [
+                                        "SUCCEEDED"
+                                    ]
+                                }
+                            },
+                            "Execute_query_1": {
+                                "type": "ServiceProvider",
+                                "inputs": {
+                                    "parameters": {
+                                        "query": "SELECT * FROM dbo.Documents;"
+                                    },
+                                    "serviceProviderConfiguration": {
+                                        "connectionName": "sql",
+                                        "operationId": "executeQuery",
+                                        "serviceProviderId": "/serviceProviders/sql"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Execute_query": [
+                                        "SUCCEEDED"
+                                    ]
+                                }
+                            },
+                            "Analyze_document": {
+                                "type": "ServiceProvider",
+                                "inputs": {
+                                    "parameters": {
+                                        "modelId": "prebuilt-layout",
+                                        "modelIdInputs": {
+                                            "content": "@base64ToBinary(item()?['contentBytes'])",
+                                            "outputContentType": "Markdown"
+                                        }
+                                    },
+                                    "serviceProviderConfiguration": {
+                                        "connectionName": "documentIntelligence",
+                                        "operationId": "analyzeDocument",
+                                        "serviceProviderId": "/serviceProviders/documentIntelligence"
+                                    }
+                                }
+                            }
+                        },
+                        "else": {
+                            "actions": {}
+                        }
+                    }
+                },
+                "runAfter": {}
+            }
+        },
+        "outputs": {},
+        "triggers": {
+            "When_a_new_email_arrives_(V3)": {
+                "type": "ApiConnectionNotification",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "office365"
+                        }
+                    },
+                    "fetch": {
+                        "pathTemplate": {
+                            "template": "/v3/Mail/OnNewEmail"
+                        },
+                        "method": "get",
+                        "queries": {
+                            "importance": "Any",
+                            "fetchOnlyWithAttachment": true,
+                            "includeAttachments": true,
+                            "subjectFilter": "test",
+                            "folderPath": "Inbox"
+                        }
+                    },
+                    "subscribe": {
+                        "body": {
+                            "NotificationUrl": "@listCallbackUrl()"
+                        },
+                        "pathTemplate": {
+                            "template": "/GraphMailSubscriptionPoke/$subscriptions"
+                        },
+                        "method": "post",
+                        "queries": {
+                            "importance": "Any",
+                            "fetchOnlyWithAttachment": true,
+                            "folderPath": "Inbox"
+                        }
+                    }
+                },
+                "splitOn": "@triggerBody()?['value']"
+            }
+        }
+    },
+    "kind": "stateful"
+}
